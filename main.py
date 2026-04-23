@@ -1,6 +1,7 @@
 from PIL import Image
 import os
 import sys
+from datetime import datetime
 
 
 def get_user_input():
@@ -46,6 +47,7 @@ def resize_and_convert_images(input_folder, output_folder, target_width, target_
     """
     Конвертирует и изменяет размер всех изображений
     Поддерживаемые входные форматы: jpg, jpeg, jfif, png, webp
+    Файлы с одинаковыми именами сохраняются в output_duble
     """
 
     # Проверяем существование входной папки
@@ -53,10 +55,16 @@ def resize_and_convert_images(input_folder, output_folder, target_width, target_
         print(f"\n❌ Ошибка: Папка '{input_folder}' не существует!")
         return False
 
-    # Создаём выходную папку если нужно
+    # Создаём выходные папки если нужно
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
         print(f"\n📁 Создана папка: {output_folder}")
+
+    # Папка для дубликатов
+    duplicate_folder = f"{output_folder}_duble"
+    if not os.path.exists(duplicate_folder):
+        os.makedirs(duplicate_folder)
+        print(f"📁 Создана папка для дубликатов: {duplicate_folder}")
 
     # Поддерживаемые входные форматы
     input_extensions = ('.png', '.jpg', '.jpeg', '.jfif', '.webp')
@@ -65,10 +73,12 @@ def resize_and_convert_images(input_folder, output_folder, target_width, target_
     processed = 0
     errors = 0
     skipped = 0
+    duplicates = 0
 
     print(f"\n🔄 Начинаю обработку...")
     print(f"   Входная папка: {input_folder}")
     print(f"   Выходная папка: {output_folder}")
+    print(f"   Папка для дубликатов: {duplicate_folder}")
     print(f"   Целевая ширина: {target_width}px")
     print(f"   Целевой формат: {target_ext.upper()}")
     print("-" * 50)
@@ -88,6 +98,7 @@ def resize_and_convert_images(input_folder, output_folder, target_width, target_
             name_without_ext = os.path.splitext(filename)[0]
             output_filename = f"{name_without_ext}.{target_ext}"
             output_path = os.path.join(output_folder, output_filename)
+            duplicate_path = os.path.join(duplicate_folder, output_filename)
 
             try:
                 # Открываем изображение
@@ -103,6 +114,16 @@ def resize_and_convert_images(input_folder, output_folder, target_width, target_
                 # Изменяем размер
                 resized_img = img.resize((target_width, new_height), Image.Resampling.LANCZOS)
 
+                # Проверяем, существует ли уже файл с таким именем в основной папке
+                target_path = output_path
+                is_duplicate = False
+
+                if os.path.exists(output_path):
+                    # Файл-дубликат - сохраняем в папку для дубликатов
+                    target_path = duplicate_path
+                    is_duplicate = True
+                    duplicates += 1
+
                 # Конвертируем в нужный формат и сохраняем
                 if target_ext == 'jpg':
                     # Для JPEG нужно конвертировать в RGB (если изображение в RGBA)
@@ -116,17 +137,23 @@ def resize_and_convert_images(input_folder, output_folder, target_width, target_
                         resized_img = background
                     elif resized_img.mode != 'RGB':
                         resized_img = resized_img.convert('RGB')
-                    resized_img.save(output_path, 'JPEG', quality=85)
+                    resized_img.save(target_path, 'JPEG', quality=85)
 
                 elif target_ext == 'png':
-                    resized_img.save(output_path, 'PNG')
+                    resized_img.save(target_path, 'PNG')
 
                 elif target_ext == 'webp':
-                    resized_img.save(output_path, 'WEBP', quality=85)
+                    resized_img.save(target_path, 'WEBP', quality=85)
 
                 processed += 1
-                print(
-                    f"✅ {filename} → {output_filename} ({original_width}x{original_height} → {target_width}x{new_height})")
+
+                # Выводим информацию о сохранении
+                if is_duplicate:
+                    print(
+                        f"🔄 {filename} → {output_filename} (ДУБЛИКАТ → {duplicate_folder}) [{original_width}x{original_height} → {target_width}x{new_height}]")
+                else:
+                    print(
+                        f"✅ {filename} → {output_filename} [{original_width}x{original_height} → {target_width}x{new_height}]")
 
             except Exception as e:
                 errors += 1
@@ -139,32 +166,29 @@ def resize_and_convert_images(input_folder, output_folder, target_width, target_
     print("-" * 50)
     print("\n📊 СТАТИСТИКА:")
     print(f"   ✅ Успешно обработано: {processed} файлов")
+    print(f"   🔄 Дубликатов отправлено в {duplicate_folder}: {duplicates} файлов")
     print(f"   ❌ Ошибок: {errors} файлов")
     print(f"   ⏭️  Пропущено: {skipped} файлов")
     print(f"\n📁 Результаты сохранены в: {output_folder}")
+    if duplicates > 0:
+        print(f"📁 Дубликаты сохранены в: {duplicate_folder}")
 
     return True
 
-
 def main():
-    """Главная функция"""
     try:
         # Получаем настройки от пользователя
         target_ext, width, input_folder, output_folder = get_user_input()
-
         # Запускаем обработку
         success = resize_and_convert_images(input_folder, output_folder, width, target_ext)
-
         if success:
             print("\n✨ Готово! Все изображения обработаны.")
         else:
             print("\n⚠️ Обработка завершена с ошибками.")
-
     except KeyboardInterrupt:
         print("\n\n⚠️ Операция прервана пользователем.")
     except Exception as e:
         print(f"\n❌ Непредвиденная ошибка: {str(e)}")
-
 
 if __name__ == "__main__":
     main()
